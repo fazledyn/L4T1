@@ -59,8 +59,8 @@ class Transformation
         ret.matrix[1][3] = ty;
         ret.matrix[2][3] = tz;
         
-        cout << "[TEST] translation_matrix" << endl;
-        cout << ret << endl;
+        // cout << "[TEST] translation_matrix" << endl;
+        // cout << ret << endl;
 
         return ret;
     }
@@ -72,8 +72,8 @@ class Transformation
         ret.matrix[1][1] = sy;
         ret.matrix[2][2] = sz;
 
-        cout << "[TEST] scale_matrix" << endl;
-        cout << ret << endl;
+        // cout << "[TEST] scale_matrix" << endl;
+        // cout << ret << endl;
 
         return ret;
     }
@@ -104,8 +104,8 @@ class Transformation
         ret.matrix[1][2] = p3.y;
         ret.matrix[2][2] = p3.z;
 
-        cout << "[TEST] rotation_matrix" << endl;
-        cout << ret << endl;
+        // cout << "[TEST] rotation_matrix" << endl;
+        // cout << ret << endl;
 
         return ret;
     }
