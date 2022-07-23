@@ -21,7 +21,8 @@ using namespace std;
 //  -----------------------
 
 
-class Color {
+class Color
+{
     public:
     int r, g, b;
     
@@ -43,7 +44,8 @@ class Color {
 };
 
 
-class Triangle {
+class Triangle
+{
     public:
     Point point[3];
     Color color;
@@ -523,11 +525,15 @@ int main(int argc, char* argv[])
 
     for (int i=0; i < screen_height; i++) {
         z_buffer[i].clear();
+        z_buffer[i].shrink_to_fit();
         frame_buffer[i].clear();
+        frame_buffer[i].shrink_to_fit();
     }
-
+    
     z_buffer.clear();
+    z_buffer.shrink_to_fit();
     frame_buffer.clear();
+    frame_buffer.shrink_to_fit();
 
     return 0;
 }

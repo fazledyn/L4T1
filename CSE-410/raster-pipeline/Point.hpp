@@ -4,8 +4,8 @@ using namespace std;
 #ifndef POINT_H
 #define POINT_H
 
-class Point {
-
+class Point
+{
     public:
     double x, y, z, w;
 
