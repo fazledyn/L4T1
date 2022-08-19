@@ -14,13 +14,12 @@ using namespace std;
 #define GL_WINDOW_WIDTH		500
 #define GL_VIEW_ANGLE		80
 
-#define RGB_LIMIT	255
 
 #define pi (2 * acos(0.0))
 #define toRad(deg) (double)(deg * pi) / 180
 
-#define CAMERA_ROTATE_STEP 5
-#define CAMERA_MOVE_STEP 5
+#define CAMERA_ROTATE_STEP 10
+#define CAMERA_MOVE_STEP 10
 
 #define N_STACKS 100
 #define N_SLICES 100
@@ -79,27 +78,30 @@ void capture()
 	bitmap_image image(IMAGE_WIDTH, IMAGE_WIDTH);
 
 	//	In Bitmap, column comes first
-	for (int col=0; col < IMAGE_WIDTH; col++) {
-		for (int row=0; row < IMAGE_WIDTH; row++) {
+	for (int col=0; col < IMAGE_WIDTH; col++)
+	{
+		for (int row=0; row < IMAGE_WIDTH; row++)
+		{
 			image.set_pixel(col, row, 0, 0, 0);
 		}
 	}
 
 	double planeDistance;
-	planeDistance = (GL_WINDOW_HEIGHT / 2.0) / tan(toRad(GL_VIEW_ANGLE / 2.0));
+	planeDistance = ((GL_WINDOW_HEIGHT/2.0) / tan(toRad(GL_VIEW_ANGLE/2.0)));
 
 	Vector topLeft;
 	topLeft = pos + (l * planeDistance) - (r * (GL_WINDOW_WIDTH/2.0)) + (u * (GL_WINDOW_HEIGHT/2.0));
 
 	double du = (double) GL_WINDOW_WIDTH/IMAGE_WIDTH;
 	double dv = (double) GL_WINDOW_HEIGHT/IMAGE_WIDTH;
+	// cout << "du: " << du << ", dv: " << dv << endl;
 
 	//	Choosing middle of the grid
 	topLeft = topLeft + (r * (0.5 * du)) - (u * (0.5 * dv));
 
 	int nearest;
 	double t, t_min;
-	Vector currentPixel{};
+	Vector currentPixel;
 
 	for (int col=0; col < IMAGE_WIDTH; col++)
 	{
@@ -109,9 +111,10 @@ void capture()
 			t_min = INFINITY;
 
 			currentPixel = topLeft + (r * (col * du)) - (u * (row * dv));
+			Ray ray(pos, currentPixel - pos);
 
-			Ray ray(pos, (currentPixel - pos));
 			Color color{};
+			// Color beforeColor = color;
 
 			for (int i=0; i < objects.size(); i++)
 			{
@@ -128,16 +131,27 @@ void capture()
 				// cout << "At line: " << __LINE__ << endl;
 				t_min = objects[nearest]->intersectIlluminate(ray, color, 1);
 			}
+
+			// cout << "At line: " << __LINE__ << endl;
+
+			// Color afterColor = color;
+			// if (beforeColor.r == afterColor.r) {
+			// 	if (beforeColor.g == afterColor.g) {
+			// 		if (beforeColor.b == afterColor.b) {
+			// 			cout << "Colors are still same!" << endl;
+			// 		}
+			// 	}
+			// }
+
 			color.normalize();
-			image.set_pixel(col, row, color.r * RGB_LIMIT, color.g * RGB_LIMIT, color.b * RGB_LIMIT);
+			image.set_pixel(col, row, color.r, color.g, color.b);
+			image.clear();
 		}
 	}
-
-	string imageName = "Output_1" + to_string(imageCount) + ".bmp";
+	string imageName = "output1" + to_string(imageCount) + ".bmp";
 	imageCount++;
 
 	image.save_image(imageName);
-	image.clear();
 	cout << "Image '" + imageName + "' saved!" << endl;
 }
 
@@ -337,6 +351,9 @@ void display()
 		light.draw();
 	}
 
+	// Sphere sp(Vector(100, 100, -200), 20);
+	// sp.draw();
+
 	glutSwapBuffers();
 }
 
@@ -357,9 +374,9 @@ void init()
 	/************************
 	/ set-up projection here
 	************************/
-	pos.x = 200;
-	pos.y = 200;
-	pos.z = 0;
+	pos.x = 150;
+	pos.y = 150;
+	pos.z = 40;
 
 	l.x = -1 / sqrt(2.00);
 	l.y = -1 / sqrt(2.00);
@@ -372,10 +389,8 @@ void init()
 	r.x = -1 / sqrt(2.00);
 	r.y = 1 / sqrt(2.00);
 	r.z = 0;
-	//	Initialization Done
 
-	//	Crearing Screen
-	glClearColor(0, 0, 0, 0);
+	//	Initialization Done
 
 	// load the PROJECTION matrix
 	glMatrixMode(GL_PROJECTION);
@@ -395,6 +410,10 @@ void init()
 
 void loadData()
 {
+	Floor* floor;
+	floor = new Floor(200, 20);
+	objects.push_back(floor);
+
 	ifstream input;
 	input.open(INPUT_FILE);	
 
@@ -421,12 +440,14 @@ void loadData()
 		{
 			Vector center;
 			input >> center;
+			cout << "(Center): " << center << endl;
 
 			double radius;
 			input >> radius;
 
 			Color color;
 			input >> color;
+			cout << "(Color): " << color << endl;
 
 			double ambient, diffuse, specular, reflection;
 			input >> ambient >> diffuse >> specular >> reflection;
@@ -482,7 +503,7 @@ void loadData()
 			int shine;
 			input >> shine;
 
-			object = new General(A, B, C, D, E, F, G, H, I, J, length, width, height, point);
+			object = new General(A, B, C, D, E, F, G, H, I, J);
 			object->setColor(color);
 			object->setCoEff(ambient, diffuse, specular, reflection);
 			object->setShine(shine);
@@ -495,11 +516,6 @@ void loadData()
 			break;
 		}
 	}
-
-	object = new Floor(800, 20);
-	object->setCoEff(0.5, 0.3, 0.4, 0.2);
-	object->setShine(10);
-	objects.push_back(object);
 
 	int nPointLights;
 	input >> nPointLights;
@@ -524,6 +540,8 @@ void loadData()
 		Vector position;
 		input >> position;
 
+		cout << "SL position: " << position << endl;
+
 		Color color;
 		input >> color;
 
@@ -538,16 +556,14 @@ void loadData()
 	}
 
 	cout << ">>> LOAD DATA COMPLETED! <<<" << endl;
-	cout << "------------------------------------------" << endl;
-	cout << "Total Objects: " << objects.size() << endl;
-	cout << "Total Point Lights: " << pointLights.size() << endl;
-	cout << "Total Spot Lights: " << spotLights.size() << endl;
-	cout << "------------------------------------------" << endl;
 }
 
 int main(int argc, char **argv)
 {
 	loadData();
+	cout << "# of objects: " << objects.size() << endl;
+	cout << "# of pointLights: " << pointLights.size() << endl;
+	cout << "# of spotLights: " << spotLights.size() << endl;
 
 	glutInit(&argc, argv);
 	glutInitWindowSize(GL_WINDOW_WIDTH, GL_WINDOW_HEIGHT);
@@ -566,6 +582,15 @@ int main(int argc, char **argv)
 	glutSpecialFunc(specialKeyListener);
 	glutMouseFunc(mouseListener);
 
+	cout << ">>>>>>>>>>>>>>>>>>>>> TEST <<<<<<<<<<<<<<<<<<<<<<<<<" << endl;
+	bitmap_image img(IMAGE_WIDTH, IMAGE_WIDTH);
+	for (int i=0; i < IMAGE_WIDTH; i++)
+	{
+		img.set_pixel(i, i, 200, 0, 0);
+	}
+	img.save_image("TEST.bmp");
+	cout << ">>>>>>>>>>>>>>>>>>>>> TEST <<<<<<<<<<<<<<<<<<<<<<<<<" << endl;
+	
 
 	glutMainLoop(); // The main loop of OpenGL
 

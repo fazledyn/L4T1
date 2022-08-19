@@ -8,6 +8,9 @@ using namespace std;
 #define pi (2 * acos(0.0))
 #define toRad(deg) (double)(deg * pi) / 180
 
+#define DIFF_POSITION   0.0000000001
+#define EPSILON         0.0000001
+
 #define N_STACKS 100
 #define N_SLICES 100
 
@@ -20,29 +23,42 @@ using namespace std;
 #define COEFF_SPECULAR   2
 #define COEFF_REFLECTION 3
 
+class point;
+class Ray;
+class Color;
+class Vector;
+class Object;
+class Triangle;
+class General;
+class PointLight;
+class SpotLight;
+class Sphere;
 
+
+extern int N_RECURSION;
+
+extern vector<Object*> objects;
+extern vector<PointLight> pointLights;
+extern vector<SpotLight> spotLights;
+
+
+//  Simple point object for drawing shapes
 class point
 {
     public:
     	double x, y, z;
 };
 
-class unit_vector
-{
-    public:
-    	double x, y, z;
-};
 
 class Color
 {
     public:
     double r, g, b;
     
-    Color()
-    {
-        this->r = rand() % 255;
-        this->g = rand() % 255;
-        this->b = rand() % 255;
+    Color() {
+        this->r = 0;
+        this->g = 0;
+        this->b = 0;
     }
 
     Color(double _r, double _g, double _b)
@@ -50,6 +66,41 @@ class Color
         this->r = _r;
         this->g = _g;
         this->b = _b;
+    }
+
+    Color (const Color &color)
+    {
+        this->r = color.r;
+        this->g = color.g;
+        this->b = color.b;
+    }
+
+    Color operator* (const double value)
+    {
+        return Color(this->r * value, this->g * value, this->b * value);
+    }
+
+    Color operator* (const Color color)
+    {
+        return Color(this->r * color.r, this->g * color.g, this->b * color.b);
+    }
+
+    Color operator+ (const Color color)
+    {
+        return Color(this->r + color.r, this->g + color.g, this->b + color.b);
+    }
+
+    //  Wasted 5h just for this fault
+    //  Color needs to be between (0-1) for this offline
+    //  -______-
+    void normalize()
+    {
+        if (r < 0)  r = 0;
+        if (g < 0)  g = 0;
+        if (b < 0)  b = 0;
+        if (r > 1)  r = 1;
+        if (g > 1)  g = 1;
+        if (b > 1)  b = 1;        
     }
     
     friend ostream& operator<< (ostream& out, Color &color)
@@ -72,6 +123,17 @@ class Color
         ret.b = 0;
         return ret;
     }
+    
+    static Color set_white()
+    {
+        Color ret;
+        ret.r = 1;
+        ret.g = 1;
+        ret.b = 1;
+        return ret;
+    }
+
+
 };
 
 class Vector
@@ -79,13 +141,7 @@ class Vector
     public:
     double x, y, z, w;
 
-    Vector()
-    {
-        this->x = 0;
-        this->y = 0;
-        this->z = 0;
-        this->w = 1.0;
-    }
+    Vector() {}
 
     Vector(double _x, double _y, double _z, double _w)
     {
@@ -171,6 +227,94 @@ class Vector
 
 };
 
+class PointLight
+{
+    public:
+        Vector light_pos;
+        Color color;
+
+        PointLight() {}
+        PointLight(Vector position, Color color)
+        {
+            this->light_pos = position;
+            this->color = color;
+        }
+
+        void draw()
+        {
+            // glPushMatrix();
+            // {
+            //     glTranslated(light_pos.x, light_pos.y, light_pos.z);                
+            //     // Sphere point(light_pos, 2);
+            //     // point.setColor(color);
+            //     // point.draw();
+            // }
+            // glPopMatrix();
+        }
+};
+
+class SpotLight : public PointLight
+{
+    public:
+        Vector light_direction;
+        double cutoff_angle;
+
+        SpotLight() {}
+        SpotLight(Vector position, Color color, Vector direction, double cutoff_angle)
+        {
+            this->light_pos = position;
+            this->color = color;
+            this->light_direction = direction;
+            this->cutoff_angle = cutoff_angle;
+        }
+
+        void draw()
+        {
+            glPushMatrix();
+            {
+                glColor3d(color.r, color.g, color.b);
+                glBegin(GL_TRIANGLES);
+                {
+                    glVertex3d(light_pos.x, light_pos.y, light_pos.z);
+                    glVertex3d(light_pos.x + 7, light_pos.y + 7, light_pos.z + 7);
+                    glVertex3d(light_pos.x + 7, light_pos.y + 7, light_pos.z + 10);
+                }
+                glEnd();
+            }
+            glPopMatrix();
+
+        }
+};
+
+class Ray
+{
+    public:
+        Vector start;
+        Vector direction;
+
+        Ray() {}
+        
+        Ray(const Ray &ray)
+        {
+            this->start = ray.start;
+            this->direction = ray.direction;
+        }
+
+        Ray(Vector _start, Vector _direction)
+        {
+            this->start = _start;
+            this->direction = _direction;
+            this->direction.normalize();
+        }
+
+        friend ostream& operator<< (ostream& out, Ray &ray)
+        {
+            out << "start: " << ray.start << endl;
+            out << "direc: " << ray.direction << endl;
+            return out;
+        }
+};
+
 
 class Object
 {
@@ -200,6 +344,130 @@ class Object
             coEff[COEFF_SPECULAR] = specular;
             coEff[COEFF_REFLECTION] = reflection;
         }
+
+        double intersectIlluminate(Ray &ray, Color &color, int level)
+        {
+            double t_min = this->intersect(ray, color, level);
+
+            if (level == 0) return t_min;
+
+            Vector intersectionPoint;
+            intersectionPoint = ray.start + ray.direction * t_min;
+
+            color = this->getColorAt(intersectionPoint) * this->coEff[COEFF_AMBIENT];
+            color.normalize();
+      
+            //  Calculate normal at intersectionPoint
+            Vector normal = this->getNormalAt(intersectionPoint);
+            normal.normalize();
+
+            for (PointLight eachLight: pointLights)
+            {
+                Vector lightDirection;
+                lightDirection = eachLight.light_pos - intersectionPoint;                
+                lightDirection.normalize();
+
+                Vector lightPosition;
+                lightPosition = intersectionPoint + lightDirection * DIFF_POSITION;
+                
+                Ray lightRay(eachLight.light_pos, lightDirection);
+
+                Color tempColor;
+                bool inShadow = false;
+                double t, t_min_original = INFINITY;
+
+                for (Object* eachObject : objects)
+                {
+                    t = eachObject->intersectIlluminate(ray, tempColor, 0);
+                    if (t > 0 && t < t_min_original)
+                    {
+                        t_min_original = t;
+                    }
+                }
+
+                if (t_min > t_min_original)
+                {
+                    inShadow = true;
+                }
+
+                //  If we aren't in the shadow region, we compute
+                //  DIFFUSE and SPECULAR componenets
+                //  R = 2.(L.N)N - L
+
+                /*
+                    lambert val is cos theta. theta is the ang betn L and N
+                    phong val is cos(ang betn R & V) to the power shine                
+                */
+                if ( !inShadow )
+                {
+                    Vector R = normal * 2.0 * (normal * lightDirection) - lightDirection;
+
+                    R.normalize();
+
+                    double lambertValue = max(normal * lightDirection, 0.0);
+                    double phongValue = max(pow(R * lightDirection, this->shine), 0.0);
+
+                    color = color + this->getColorAt(intersectionPoint) * eachLight.color * lambertValue * this->coEff[COEFF_DIFFUSE];
+                    color.normalize();
+
+                    color = color + eachLight.color * phongValue * this->coEff[COEFF_SPECULAR];
+                    color.normalize();
+                }
+            }
+            
+            //  Perform recursive reflection
+            //  FFS
+            if (level >= N_RECURSION)   return t_min;
+
+            Vector refRayDirection;
+            refRayDirection = ray.direction - normal * 2.0 * (normal * ray.direction);
+
+            cout << "Before normalize() at: " << __LINE__ << endl;            
+            refRayDirection.normalize();
+
+            Vector refRayStart;
+            refRayStart = intersectionPoint + refRayDirection * DIFF_POSITION;
+            Ray refRay(refRayStart, refRayDirection);
+
+            //  Nearest intersected Object
+            Color refColor;
+            int nearest = -1;
+            double t_ref, t_ref_min = INFINITY;
+
+            for (int i=0; i < objects.size(); i++)
+            {
+                t_ref = objects[i]->intersectIlluminate(refRay, refColor, 0);
+                if (t_ref > 0 && t_ref < t_ref_min)
+                {
+                    t_ref_min = t_ref;
+                    nearest = i;
+                }
+            }
+
+            if (nearest != -1)
+            {
+                t_ref_min = objects[nearest]->intersectIlluminate(refRay, refColor, level + 1);
+                color = color + refColor * this->coEff[COEFF_REFLECTION];
+                color.normalize();
+            }
+
+            return t_min;
+        }
+
+        Vector getNormalAt(Vector &intersectionPoint)
+        {
+            return Vector();
+        }
+
+        virtual Color getColorAt(Vector &intersectionPoint)
+        {
+            return this->color;
+        }
+
+        virtual double intersect(Ray &ray, Color &color, int level)
+        {
+            return -1.0;
+        }
 };
 
 
@@ -217,12 +485,14 @@ class Floor: public Object
             this->tile_width = tile_width;
 
             this->ref_point = Vector(-floor_width/2, -floor_width/2, 0);
+            cout << "ref_point: " << ref_point << endl;
+
             this->length = tile_width;          //  are you sure ???
         }
 
-        void draw()
+        void draw() override
         {
-            int n_grid = int(floor_width/tile_width);
+            int n_grid = (int) floor_width/tile_width;
 
             for (int row = 0; row < n_grid; row++)
             {
@@ -241,6 +511,49 @@ class Floor: public Object
                     glEnd();
                 }
             }
+        }
+
+        double intersect(Ray &ray, Color &color, int level)
+        {
+            Vector normal(0, 0, 1);
+
+            double t = (-1.0) * ((normal * ray.start)/(normal * ray.direction));
+            Vector intPoint = ray.start + ray.direction * t;
+
+            if (intPoint.x < ref_point.x || intPoint.x > -ref_point.x) {
+                return -1;
+            }
+
+            if (intPoint.y < ref_point.y || intPoint.y > -ref_point.y) {
+                return -1;
+            }
+
+            return t;
+        }
+
+        Vector getNormalAt(Vector &intersectionVector)
+        {
+            return Vector(0, 0, 1);
+        }
+
+        Color getColorAt(Vector &intersectionPoint)
+        {
+            if (intersectionPoint.x < ref_point.x || intersectionPoint.x > -ref_point.x) {
+                return Color(0, 0, 0);
+            }
+
+            if (intersectionPoint.y < ref_point.y || intersectionPoint.y > -ref_point.y) {
+                return Color(0, 0, 0);
+            }
+
+            int col = (ref_point.x + intersectionPoint.x) / tile_width;
+            int row = (ref_point.y + intersectionPoint.y) / tile_width;
+
+            if ((row + col) % 2 == 0) {
+                return Color(0, 0, 0);
+            }
+
+            return Color(1, 1, 1);
         }
 };
 
@@ -270,21 +583,48 @@ class Triangle: public Object
             glEnd();
         }
 
-        void setColor(Color color)
+        double intersect(Ray &ray, Color &color, int level)
         {
-            Object::setColor(color);
+            Vector edge_ba = b - a;
+            Vector edge_ca = c - a;
+
+            Vector vert = ray.direction ^ edge_ca;
+            double const_a = edge_ba * vert;
+
+            //  Ray parallel to the surface of triangle
+            if (const_a > -EPSILON && const_a < EPSILON)
+            {
+                return -1;
+            }
+
+            double f = 1.0/const_a;
+            Vector s = ray.start - a;
+
+            double u = f * (s * vert);
+            if (u < 0.0 || u > 1.0) {
+                return -1;
+            }
+
+            Vector q = s ^ edge_ba;
+            double v = f * (ray.direction * q);
+            if (v < 0.0 || (u + v) > 1.0) {
+                return -1;
+            }
+
+            double t = f * (edge_ca * q);
+            if (t > EPSILON) {
+                return t;
+            }
+
+            return -1;
         }
 
-        void setCoEff(double ambient, double diffuse, double specular, double reflection)
+        Vector getNormalAt(Vector &intPoint)
         {
-            Object::setCoEff(ambient, diffuse, specular, reflection);
+            Vector normal = (b - a) ^ (c - a);
+            normal.normalize();
+            return normal;
         }
-
-        void setShine(int shine)
-        {
-            Object::setShine(shine);
-        }
-
 };
 
 class Sphere : public Object
@@ -352,10 +692,12 @@ class Sphere : public Object
     }
 
     public:
+        double radius;
+
         Sphere(Vector center, double radius)
         {
             this->ref_point = center;
-            this->width = radius;
+            this->radius = radius;
         }
 
         void draw()
@@ -364,32 +706,62 @@ class Sphere : public Object
             glPushMatrix();
             {
                 glTranslated(ref_point.x, ref_point.y, ref_point.z);         
-                drawHalfSphere(0, this->width);
+                drawHalfSphere(0, this->radius);
                 glPushMatrix();
                 {
                     glRotated(180, 1, 0, 0);
-                    drawHalfSphere(0, this->width);
+                    drawHalfSphere(0, this->radius);
                 }
                 glPopMatrix();
             }
             glPopMatrix();
         }
 
-        void setColor(Color color)
+        double intersect(Ray &ray, Color &color, int level)
         {
-            Object::setColor(color);
+            Vector sphereOrigin = ray.start - ref_point;
+
+            double a = 1;
+            double b = (ray.direction * sphereOrigin) * 2.0;
+            double c = (sphereOrigin * sphereOrigin) - radius * radius;
+
+            double det = b*b - 4*a*c;
+            if (det < 0) {
+                return -1;
+            }
+
+            double d = sqrt(det);
+            double t1 = (-b - d)/(2*a);
+            double t2 = (-b + d)/(2*a);
+            
+            if (t1 < 0 && t2 < 0) {
+                return -1;
+            }
+            
+            if (t1 > 0) {
+                return t1;
+            }
+            
+            if (t2 > 0) {
+                return t2;
+            }
+            
+            return -1;
         }
 
-        void setCoEff(double ambient, double diffuse, double specular, double reflection)
+        Vector getNormalAt(Vector &intPoint)
         {
-            Object::setCoEff(ambient, diffuse, specular, reflection);
+            Vector normal = intPoint - ref_point;
+            normal.normalize();
+            return normal;
         }
 
-        void setShine(int shine)
-        {
-            Object::setShine(shine);
-        }
 };
+
+/**
+ * General Quadric Surface
+ * More Info: http://skuld.bmsc.washington.edu/people/merritt/graphics/quadrics.html
+*/
 
 class General: public Object
 {
@@ -397,7 +769,7 @@ class General: public Object
         double A, B, C, D, E, F, G, H, I, J;
 
         General() {}
-        General(double A, double B, double C, double D, double E, double F, double G, double H, double I, double J)
+        General(double A, double B, double C, double D, double E, double F, double G, double H, double I, double J, double length, double width, double height, Vector point)
         {
             this->A = A;
             this->B = B;
@@ -409,87 +781,123 @@ class General: public Object
             this->H = H;
             this->I = I;
             this->J = J;
+
+            this->length = length;
+            this->width = width;
+            this->height = height;
+            this->ref_point = point;
+
+            cout << "CO EFFs: " << A << ", " << B << ", " << C << ", " << D << ", " << E << ", " << F << ", " << G << ", " << H << ", " << I << ", " << J << endl;
+            cout << "LWH: " << length << ", " << width << ", " << height << endl;
+            cout << "REF: " << ref_point << endl; 
         }
 
-        void draw()
+        bool isWithinRange(Vector point)
         {
-            //  ...
-        }
-
-        void setColor(Color color)
-        {
-            Object::setColor(color);
-        }
-
-        void setCoEff(double ambient, double diffuse, double specular, double reflection)
-        {
-            Object::setCoEff(ambient, diffuse, specular, reflection);
-        }
-
-        void setShine(int shine)
-        {
-            Object::setShine(shine);
-        }
-
-};
-
-class PointLight
-{
-    public:
-        Vector light_pos;
-        Color color;
-
-        PointLight() {}
-        PointLight(Vector position, Color color)
-        {
-            this->light_pos = position;
-            this->color = color;
-        }
-
-        void draw()
-        {
-            glPushMatrix();
+            if (length != 0)
             {
-                glTranslated(light_pos.x, light_pos.y, light_pos.z);                
-                Sphere point(light_pos, 2);
-                point.setColor(color);
-                point.draw();
+                if (point.x < ref_point.x || point.x > ref_point.x + length)
+                    return false;
             }
-            glPopMatrix();
-        }
-};
-
-class SpotLight : public PointLight
-{
-    public:
-        Vector light_direction;
-        double cutoff_angle;
-
-        SpotLight() {}
-        SpotLight(Vector position, Color color, Vector direction, double cutoff_angle)
-        {
-            this->light_pos = position;
-            this->color = color;
-            this->light_direction = direction;
-            this->cutoff_angle = cutoff_angle;
-        }
-
-        void draw()
-        {
-            glPushMatrix();
+            if (width != 0)
             {
-                glColor3d(color.r, color.g, color.b);
-                glBegin(GL_TRIANGLES);
-                {
-                    glVertex3d(light_pos.x, light_pos.y, light_pos.z);
-                    glVertex3d(light_pos.x + 7, light_pos.y + 7, light_pos.z + 7);
-                    glVertex3d(light_pos.x + 7, light_pos.y + 7, light_pos.z + 10);
-                }
-                glEnd();
+                if (point.y < ref_point.y || point.y > ref_point.y + width)
+                    return false;
             }
-            glPopMatrix();
-
+            if (height != 0)
+            {
+                if (point.z < ref_point.z || point.z > ref_point.z + height)
+                    return false;
+            }
+            return true;
         }
+
+        /**
+         * 
+            F(x, y, z) = Ax2 + By2 + Cz2 + Dxy+ Exz + Fyz + Gx + Hy + Iz + J = 0
+            Then substitute in ray equation R(t) = Ro + Rd and we get quadratic equation:
+
+            Aq.t2 + Bq.t + Cq = 0 with
+            
+            Aq = A.xd2    + B.yd2   + C.zd2 + 
+                + D.xd.yd + E.xd.zd + F.yd.zd
+            
+            Bq = 2*A.xo.xd          + 2*B.yo.yd         + 2*C.zo.zd         +
+                + D(xo.yd + yo.xd)  + E(xo.zd + zo.xd)  + F(yo.zd + yd.zo)  +
+                + G.xd              + H.yd              + I.zd
+
+            Cq = A.xo2 + B.yo2 + C.zo2 +
+                + D.xo.yo + E.xo.zo + F.yo.zo +
+                + G.xo + H.yo + I.zo + J
+        */
+
+        double intersect(Ray &ray, Color &color, int level)
+        {
+            double xo = ray.start.x,    xd = ray.direction.x;
+            double yo = ray.start.y,    yd = ray.direction.y;
+            double zo = ray.start.z,    zd = ray.direction.z;
+
+            double aq = 0;
+            aq += A*pow(xd, 2) + B*pow(yd, 2) + C*pow(zd, 2);
+            aq += D*xd*yd + E*xd*zd + F*yd*zd;
+            
+            double bq = 0;
+            bq += 2*A * xo*xd + 2*B * yo*yd + 2*C * zo*zd;
+            bq += D * (xo*yd + yo*xd) + E * (xo*zd + zo*xd) + F * (yo*zd + yd*zo);
+            bq += G * zd + H * yd + I * zd;
+            
+            double cq = 0;
+            cq += A*pow(xo, 2) + B*pow(yo, 2) + C*pow(zo, 2);
+            cq += D * (xo * yo) + E * (xo * zo) + F * (yo * zo);
+            cq += G * xo + H * yo + I * zo * J;
+
+            double det = bq*bq - 4*aq*cq;
+            if (det < 0) {
+                return -1;
+            }
+
+            double d = sqrt(det);
+            double t1 = (-bq - d)/(2 * aq);
+            double t2 = (-bq + d)/(2 * aq);
+
+            Vector point_1 = ray.start + ray.direction * t1;
+            Vector point_2 = ray.start + ray.direction * t2;
+            
+            if (t1 < 0 && t2 < 0) {
+                return -1;
+            }
+            if (t1 > 0 && isWithinRange(point_1)) {
+                return t1;
+            }
+            if (t2 > 0 && isWithinRange(point_2)) {
+                return t2;
+            }
+
+            return -1;
+        }
+
+        /*
+        *   Equation : F(x,y,z) = Ax2 + By2 + Cz2 + Dxy + Exz + Fyz + Gx + Hy + Iz + J = 0
+        *   Normal (Partial derivative):
+        *   -----------------------------
+        *       dF/dx = 2Ax + Dy + Ez + G
+        *       dF/dy = 2By + Dx + Fz + H
+        *       dF/dz = 2Cz + Ex + Fy + I       
+        */
+
+        Vector getNormalAt(Vector &intPoint)
+        {
+            double df_dx = 2*A * intPoint.x + D * intPoint.y + E * intPoint.z + G;
+            double df_dy = 2*B * intPoint.y + D * intPoint.x + F * intPoint.z + H;
+            double df_dz = 2*C * intPoint.z + E * intPoint.x + F * intPoint.y + I;
+
+            Vector normal(df_dx, df_dy, df_dz);
+            normal.normalize();            
+            return normal;
+        }
+
+
 };
+
 
 #endif
