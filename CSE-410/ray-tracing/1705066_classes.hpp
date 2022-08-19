@@ -171,7 +171,7 @@ class Vector
     void normalize()
     {
         double value = sqrt(x*x + y*y + z*z);
-        if (value == 0) {
+        if (value == 0.0) {
             cout << "ERROR Can't divide by zero" << endl;
             return;
         }
@@ -282,7 +282,6 @@ class SpotLight : public PointLight
                 glEnd();
             }
             glPopMatrix();
-
         }
 };
 
@@ -359,6 +358,7 @@ class Object
       
             //  Calculate normal at intersectionPoint
             Vector normal = this->getNormalAt(intersectionPoint);
+            // cout << "normal at intPoint: " << normal << endl;
             normal.normalize();
 
             for (PointLight eachLight: pointLights)
@@ -422,7 +422,8 @@ class Object
             Vector refRayDirection;
             refRayDirection = ray.direction - normal * 2.0 * (normal * ray.direction);
 
-            cout << "Before normalize() at: " << __LINE__ << endl;            
+            // cout << "refRayDir: " << refRayDirection << endl;
+            // cout << "Before normalize() at: " << __LINE__ << endl;            
             refRayDirection.normalize();
 
             Vector refRayStart;
@@ -454,7 +455,7 @@ class Object
             return t_min;
         }
 
-        Vector getNormalAt(Vector &intersectionPoint)
+        virtual Vector getNormalAt(Vector &intersectionPoint)
         {
             return Vector();
         }
@@ -531,12 +532,12 @@ class Floor: public Object
             return t;
         }
 
-        Vector getNormalAt(Vector &intersectionVector)
+        Vector getNormalAt(Vector &intPoint) override
         {
             return Vector(0, 0, 1);
         }
 
-        Color getColorAt(Vector &intersectionPoint)
+        Color getColorAt(Vector &intersectionPoint) override
         {
             if (intersectionPoint.x < ref_point.x || intersectionPoint.x > -ref_point.x) {
                 return Color(0, 0, 0);
@@ -619,7 +620,7 @@ class Triangle: public Object
             return -1;
         }
 
-        Vector getNormalAt(Vector &intPoint)
+        Vector getNormalAt(Vector &intPoint) override
         {
             Vector normal = (b - a) ^ (c - a);
             normal.normalize();
@@ -749,7 +750,7 @@ class Sphere : public Object
             return -1;
         }
 
-        Vector getNormalAt(Vector &intPoint)
+        Vector getNormalAt(Vector &intPoint) override
         {
             Vector normal = intPoint - ref_point;
             normal.normalize();
@@ -792,6 +793,8 @@ class General: public Object
             cout << "REF: " << ref_point << endl; 
         }
 
+        void draw() {}
+
         bool isWithinRange(Vector point)
         {
             if (length != 0)
@@ -831,12 +834,16 @@ class General: public Object
                 + G.xo + H.yo + I.zo + J
         */
 
-        double intersect(Ray &ray, Color &color, int level)
+        double intersect(Ray &ray, Color &color, int level) override
         {
             double xo = ray.start.x,    xd = ray.direction.x;
             double yo = ray.start.y,    yd = ray.direction.y;
             double zo = ray.start.z,    zd = ray.direction.z;
 
+            //  **********************************************************
+            //  ********************  CAREFUL SPACE  *********************
+            //  **********************************************************
+            
             double aq = 0;
             aq += A*pow(xd, 2) + B*pow(yd, 2) + C*pow(zd, 2);
             aq += D*xd*yd + E*xd*zd + F*yd*zd;
@@ -844,12 +851,17 @@ class General: public Object
             double bq = 0;
             bq += 2*A * xo*xd + 2*B * yo*yd + 2*C * zo*zd;
             bq += D * (xo*yd + yo*xd) + E * (xo*zd + zo*xd) + F * (yo*zd + yd*zo);
-            bq += G * zd + H * yd + I * zd;
+            bq += G * xd + H * yd + I * zd;
             
             double cq = 0;
             cq += A*pow(xo, 2) + B*pow(yo, 2) + C*pow(zo, 2);
             cq += D * (xo * yo) + E * (xo * zo) + F * (yo * zo);
-            cq += G * xo + H * yo + I * zo * J;
+            cq += G * xo + H * yo + I * zo + J;
+
+            //  **********************************************************
+            //  ********************  CAREFUL SPACE  *********************
+            //  **********************************************************
+            //  wasted around 2hr behind this thing
 
             double det = bq*bq - 4*aq*cq;
             if (det < 0) {
@@ -885,14 +897,14 @@ class General: public Object
         *       dF/dz = 2Cz + Ex + Fy + I       
         */
 
-        Vector getNormalAt(Vector &intPoint)
+        Vector getNormalAt(Vector &intPoint) override
         {
             double df_dx = 2*A * intPoint.x + D * intPoint.y + E * intPoint.z + G;
             double df_dy = 2*B * intPoint.y + D * intPoint.x + F * intPoint.z + H;
             double df_dz = 2*C * intPoint.z + E * intPoint.x + F * intPoint.y + I;
 
             Vector normal(df_dx, df_dy, df_dz);
-            normal.normalize();            
+            normal.normalize();    
             return normal;
         }
 

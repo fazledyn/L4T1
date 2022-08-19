@@ -115,6 +115,9 @@ void capture()
 
 			for (int i=0; i < objects.size(); i++)
 			{
+				// cout << "object[" << i << "]: " << objects[i]->ref_point << endl;
+				// cout << endl;
+
 				t = objects[i]->intersectIlluminate(ray, color, 0);
 				if (t > 0 && t < t_min)
 				{
