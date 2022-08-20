@@ -3,6 +3,7 @@
 
 #include <bits/stdc++.h>
 #include <GL/glut.h>
+#include "bitmap_image.hpp"
 using namespace std;
 
 #define pi (2 * acos(0.0))
@@ -532,6 +533,7 @@ class Floor : public Object
 public:
 	double floor_width;
 	double tile_width;
+	bitmap_image texture;
 
 	Floor() {}
 
@@ -541,6 +543,8 @@ public:
 		this->floor_width = floor_width;
 		this->tile_width = tile_width;
 		this->length = tile_width;
+
+		texture = bitmap_image("./doge.bmp");
 	}
 
 	void draw() override
@@ -597,27 +601,40 @@ public:
 		return Vector(0, 0, 1);
 	}
 
-	Color getColorAt(Vector &intersectionPoint) override
+	Color getColorAt(Vector &intPoint) override
 	{
-		if (intersectionPoint.x < ref_point.x || intersectionPoint.x > -ref_point.x)
+        int row = (int) ( (intPoint.x - ref_point.x) / tile_width );
+        int col = (int) ( (intPoint.y - ref_point.y) / tile_width );
+
+		double tile = 0.5;
+		double tex  = 1 - tile;
+		int c = (row + col) % 2;
+
+		bool TEXTURE_MODE = false;
+		if (!TEXTURE_MODE)
 		{
-			return Color(0, 0, 0);
+			return Color(c, c, c);
 		}
 
-		if (intersectionPoint.y < ref_point.y || intersectionPoint.y > -ref_point.y)
-		{
-			return Color(0, 0, 0);
-		}
+		double x = (intPoint.x - ref_point.x ) - tile_width * row;
+		double y = (intPoint.y - ref_point.y ) - tile_width * col;
+		// cout << __LINE__ << endl;
+		// cout << "x, y: " << x << ", " << y << endl;
 
-		int col = (ref_point.x + intersectionPoint.x) / tile_width;
-		int row = (ref_point.y + intersectionPoint.y) / tile_width;
+		int tex_x = (int) (texture.height() * x)/tile_width;
+		int tex_y = (int) (texture.width()  * y)/tile_width;
+		// cout << __LINE__ << endl;
+		// cout << "tex_x, tex_y: " << tex_x << ", " << tex_y << endl;
 
-		if ((row + col) % 2 == 0)
-		{
-			return Color(0, 0, 0);
-		}
+        unsigned char r, g, b;
+        texture.get_pixel(tex_x, tex_y, r, g, b);
+		// cout << __LINE__ << endl;
 
-		return Color(1, 1, 1);
+		double color_r = c * tile + (r / 255.0) * tex;
+		double color_g = c * tile + (g / 255.0) * tex;
+		double color_b = c * tile + (b / 255.0) * tex;
+
+		return Color(color_r, color_g, color_b);
 	}
 };
 
