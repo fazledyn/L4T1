@@ -1,29 +1,18 @@
-#include <iostream>
-#include <vector>
-#include <cmath>
-using namespace std;
-
-#include <unistd.h>
+#include <bits/stdc++.h>
 #include <GL/glut.h>
+using namespace std;
 
 #include "1705066_classes.hpp"
 #include "bitmap_image.hpp"
 
+#define GL_WINDOW_HEIGHT 	500
+#define GL_WINDOW_WIDTH 	500
+#define GL_VIEW_ANGLE 		80
 
-#define GL_WINDOW_HEIGHT	500
-#define GL_WINDOW_WIDTH		500
-#define GL_VIEW_ANGLE		80
+#define RGB_LIMIT 			255
 
-#define RGB_LIMIT	255
-
-#define pi (2 * acos(0.0))
-#define toRad(deg) (double)(deg * pi) / 180
-
-#define CAMERA_ROTATE_STEP 5
-#define CAMERA_MOVE_STEP 5
-
-#define N_STACKS 100
-#define N_SLICES 100
+#define CAMERA_ROTATE_STEP 	5
+#define CAMERA_MOVE_STEP 	10
 
 #define INPUT_FILE "./scene.txt"
 
@@ -36,7 +25,7 @@ int imageCount = 0;
 int IMAGE_WIDTH = 0;
 int N_RECURSION = 0;
 
-vector<Object*> objects;
+vector<Object *> objects;
 vector<PointLight> pointLights;
 vector<SpotLight> spotLights;
 
@@ -51,7 +40,7 @@ void drawAxes()
 			glVertex3f(-500, 0, 0);
 		}
 		glEnd();
-	
+
 		glColor3f(0, 1.0, 0);
 		glBegin(GL_LINES);
 		{
@@ -59,28 +48,27 @@ void drawAxes()
 			glVertex3f(0, -500, 0);
 		}
 		glEnd();
-	
+
 		glColor3f(0, 0, 1.0);
 		glBegin(GL_LINES);
 		{
 			glVertex3f(0, 0, 500);
 			glVertex3f(0, 0, -500);
 		}
-		glEnd();	
+		glEnd();
 	}
 }
 
-
 void capture()
 {
-	cout << "Capturing Image from pos: " << pos << endl;
-
-	//	Init Bitmap Image
-	bitmap_image image(IMAGE_WIDTH, IMAGE_WIDTH);
+	cout << "Capturing Image" << endl;
 
 	//	In Bitmap, column comes first
-	for (int col=0; col < IMAGE_WIDTH; col++) {
-		for (int row=0; row < IMAGE_WIDTH; row++) {
+	bitmap_image image(IMAGE_WIDTH, IMAGE_WIDTH);
+	for (int col = 0; col < IMAGE_WIDTH; col++)
+	{
+		for (int row = 0; row < IMAGE_WIDTH; row++)
+		{
 			image.set_pixel(col, row, 0, 0, 0);
 		}
 	}
@@ -89,10 +77,10 @@ void capture()
 	planeDistance = (GL_WINDOW_HEIGHT / 2.0) / tan(toRad(GL_VIEW_ANGLE / 2.0));
 
 	Vector topLeft;
-	topLeft = pos + (l * planeDistance) - (r * (GL_WINDOW_WIDTH/2.0)) + (u * (GL_WINDOW_HEIGHT/2.0));
+	topLeft = pos + (l * planeDistance) - (r * (GL_WINDOW_WIDTH / 2.0)) + (u * (GL_WINDOW_HEIGHT / 2.0));
 
-	double du = (double) GL_WINDOW_WIDTH/IMAGE_WIDTH;
-	double dv = (double) GL_WINDOW_HEIGHT/IMAGE_WIDTH;
+	double du = (double)GL_WINDOW_WIDTH / IMAGE_WIDTH;
+	double dv = (double)GL_WINDOW_HEIGHT / IMAGE_WIDTH;
 
 	//	Choosing middle of the grid
 	topLeft = topLeft + (r * (0.5 * du)) - (u * (0.5 * dv));
@@ -101,24 +89,20 @@ void capture()
 	double t, t_min;
 	Vector currentPixel{};
 
-	for (int col=0; col < IMAGE_WIDTH; col++)
+	for (int col = 0; col < IMAGE_WIDTH; col++)
 	{
-		for (int row=0; row < IMAGE_WIDTH; row++)
+		for (int row = 0; row < IMAGE_WIDTH; row++)
 		{
 			nearest = -1;
 			t_min = INFINITY;
-
 			currentPixel = topLeft + (r * (col * du)) - (u * (row * dv));
 
 			Ray ray(pos, (currentPixel - pos));
-			Color color{};
+			Color color;
 
-			for (int i=0; i < objects.size(); i++)
+			for (int i = 0; i < objects.size(); i++)
 			{
-				// cout << "object[" << i << "]: " << objects[i]->ref_point << endl;
-				// cout << endl;
-
-				t = objects[i]->intersectIlluminate(ray, color, 0);
+				t = objects[i]->intersect(ray, color, 0);
 				if (t > 0 && t < t_min)
 				{
 					t_min = t;
@@ -128,17 +112,14 @@ void capture()
 
 			if (nearest != -1)
 			{
-				// cout << "At line: " << __LINE__ << endl;
-				t_min = objects[nearest]->intersectIlluminate(ray, color, 1);
+				t_min = objects[nearest]->intersect(ray, color, 1);
 			}
 			color.normalize();
 			image.set_pixel(col, row, color.r * RGB_LIMIT, color.g * RGB_LIMIT, color.b * RGB_LIMIT);
 		}
 	}
-
 	string imageName = "Output_1" + to_string(imageCount) + ".bmp";
 	imageCount++;
-
 	image.save_image(imageName);
 	image.clear();
 	cout << "Image '" + imageName + "' saved!" << endl;
@@ -269,12 +250,6 @@ void specialKeyListener(int key, int x, int y)
 		pos.z -= u.z * CAMERA_MOVE_STEP;
 		break;
 
-	case GLUT_KEY_HOME:
-		break;
-
-	case GLUT_KEY_END:
-		break;
-
 	default:
 		break;
 	}
@@ -284,17 +259,17 @@ void mouseListener(int button, int state, int x, int y)
 {
 	switch (button)
 	{
-		case GLUT_LEFT_BUTTON:
-			if (state == GLUT_DOWN) {
-				drawaxes = 1 - drawaxes;
-			}
-			break;
+	case GLUT_LEFT_BUTTON:
+		if (state == GLUT_DOWN) {
+			drawaxes = 1 - drawaxes;
+		}
+		break;
 
-		case GLUT_RIGHT_BUTTON:
-			break;
+	case GLUT_RIGHT_BUTTON:
+		break;
 
-		default:
-			break;
+	default:
+		break;
 	}
 }
 
@@ -328,15 +303,18 @@ void display()
 
 	drawAxes();
 
-	for (Object* each : objects) {
+	for (Object *each : objects)
+	{
 		each->draw();
 	}
 
-	for (PointLight light : pointLights) {
+	for (PointLight light : pointLights)
+	{
 		light.draw();
 	}
 
-	for (SpotLight light : spotLights) {
+	for (SpotLight light : spotLights)
+	{
 		light.draw();
 	}
 
@@ -394,12 +372,10 @@ void init()
 	// far distance
 }
 
-
-
 void loadData()
 {
 	ifstream input;
-	input.open(INPUT_FILE);	
+	input.open(INPUT_FILE);
 
 	if (!input.is_open())
 	{
@@ -410,13 +386,13 @@ void loadData()
 	//	Arbitrarily Constants
 	input >> N_RECURSION >> IMAGE_WIDTH;
 
-	Object* object;
+	Object *object;
 	string objectType;
 
 	int nObjects;
 	input >> nObjects;
 
-	for (int i=0; i < nObjects; i++)
+	for (int i = 0; i < nObjects; i++)
 	{
 		input >> objectType;
 
@@ -448,7 +424,7 @@ void loadData()
 		{
 			Vector a, b, c;
 			input >> a >> b >> c;
-			
+
 			Color color;
 			input >> color;
 
@@ -478,7 +454,7 @@ void loadData()
 
 			Color color;
 			input >> color;
-			
+
 			double ambient, diffuse, specular, reflection;
 			input >> ambient >> diffuse >> specular >> reflection;
 
@@ -507,7 +483,7 @@ void loadData()
 	int nPointLights;
 	input >> nPointLights;
 
-	for (int i=0; i < nPointLights; i++)
+	for (int i = 0; i < nPointLights; i++)
 	{
 		Vector position;
 		input >> position;
@@ -522,7 +498,7 @@ void loadData()
 	int nSpotLights;
 	input >> nSpotLights;
 
-	for (int i=0; i < nSpotLights; i++)
+	for (int i = 0; i < nSpotLights; i++)
 	{
 		Vector position;
 		input >> position;
@@ -540,12 +516,12 @@ void loadData()
 		spotLights.push_back(light);
 	}
 
-	cout << ">>> LOAD DATA COMPLETED! <<<" << endl;
-	cout << "------------------------------------------" << endl;
-	cout << "Total Objects: " << objects.size() << endl;
-	cout << "Total Point Lights: " << pointLights.size() << endl;
-	cout << "Total Spot Lights: " << spotLights.size() << endl;
-	cout << "------------------------------------------" << endl;
+	cout << endl << ">>> LOAD DATA COMPLETED! <<<" 			<< endl;
+	cout << "--------------------------------------------" 	<< endl;
+	cout << "Total Objects: " << objects.size() 			<< endl;
+	cout << "Total Point Lights: " << pointLights.size() 	<< endl;
+	cout << "Total Spot Lights: " << spotLights.size() 		<< endl;
+	cout << "--------------------------------------------" 	<< endl;
 }
 
 int main(int argc, char **argv)
@@ -569,9 +545,18 @@ int main(int argc, char **argv)
 	glutSpecialFunc(specialKeyListener);
 	glutMouseFunc(mouseListener);
 
-
 	glutMainLoop(); // The main loop of OpenGL
+
+	cout << endl << "Memory Cleanup Started" << endl;
+
+	for (int i=0; i < objects.size(); i++) {
+		delete objects[i];
+	}
+	vector<Object*>().swap(objects);
+	vector<PointLight>().swap(pointLights);
+	vector<SpotLight>().swap(spotLights);
+
+	cout << "Memory Clearnup Completed!" << endl;
 
 	return 0;
 }
-
